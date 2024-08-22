@@ -39,8 +39,8 @@ jobs:
 
     - name: Install Android NDK
       run: |
-        wget https://dl.google.com/android/repository/ndk-bundle.zip
-        unzip ndk-bundle.zip
+        wget https://googledownloads.cn/android/repository/android-ndk-r27-linux.zip
+        unzip android-ndk-r27-linux.zip
         echo "ANDROID_NDK_HOME=$PWD/ndk-bundle" >> $GITHUB_ENV
         echo "$PWD/ndk-bundle" >> $GITHUB_PATH
 
