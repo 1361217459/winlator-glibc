@@ -1,16 +1,16 @@
 name: Build Android App with CMake and Submodules
 
-on: [push, pull_request]  # 触发条件
+on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # 运行环境
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout source code and submodules
       uses: actions/checkout@v2
       with:
-        submodules: 'recursive'  # 确保子模块也被克隆
+        submodules: 'recursive'
 
     - name: Set up Java 17
       uses: actions/setup-java@v2
@@ -21,48 +21,39 @@ jobs:
     - name: Set up Gradle
       uses: gradle/gradle-build-action@v2
       with:
-        gradle-version: 8.6  # 指定 Gradle 版本
+        gradle-version: 8.6
 
     - name: Cache Gradle dependencies
       uses: actions/cache@v2
       with:
         path: ~/.gradle/caches
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
 
-    - name: Install Android SDK and NDK
+    - name: Install Android SDK
       run: |
         wget https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
         unzip sdk-tools-linux-4333796.zip -d android-sdk
         echo "ANDROID_HOME=$PWD/android-sdk" >> $GITHUB_ENV
         echo "$PWD/android-sdk/tools/bin" >> $GITHUB_PATH
-        echo "$PWD/android-sdk/platform-tools" >> $GITHUB_PATH
-        yes | sdkmanager "platforms;android-34" "build-tools;34.0.0"
+        sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" || true
+
+    - name: Install Android NDK
+      run: |
+        wget https://dl.google.com/android/repository/ndk-bundle.zip
+        unzip ndk-bundle.zip
+        echo "ANDROID_NDK_HOME=$PWD/ndk-bundle" >> $GITHUB_ENV
+        echo "$PWD/ndk-bundle" >> $GITHUB_PATH
 
     - name: Install CMake
       run: sudo apt-get install cmake -y
 
     - name: Build with build.sh for audio_plugin (arm64)
       working-directory: audio_plugin
-      run: ./build.sh
+      run: ./build.sh || { echo "Build failed for audio_plugin"; exit 1; }
 
     - name: Build with build.sh for android_sysvshm (armhf)
       working-directory: android_sysvshm
-      run: ./build.sh
+      run: ./build.sh || { echo "Build failed for android_sysvshm"; exit 1; }
 
     - name: Assemble and Test with Gradle
-      run: ./gradlew assembleDebug test
-
-    - name: Upload build reports
-      if: failure()
-      uses: actions/upload-artifact@v2
-      with:
-        name: build-reports
-        path: build/reports
-
-    - name: Upload APK
-      uses: actions/upload-artifact@v2
-      with:
-        name: app-apk
-        path: app/build/outputs/apk/debug/
+      run: ./gradlew assembleDebug test || { echo "Gradle build failed"; exit 1; }
