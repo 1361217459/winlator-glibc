@@ -28,7 +28,12 @@ jobs:
       with:
         path: ~/.gradle/caches
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts') }}
-
+        
+    - name: Set execute permission for build.sh scripts
+      run: |
+        chmod +x audio_plugin/build.sh
+        chmod +x android_sysvshm/build.sh
+        
     - name: Install Android SDK
       run: |
         wget https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
