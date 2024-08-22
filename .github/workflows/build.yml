@@ -28,37 +28,60 @@ jobs:
       with:
         path: ~/.gradle/caches
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts') }}
-        
-    - name: Set execute permission for build.sh scripts
-      run: |
-        chmod +x audio_plugin/build.sh
-        chmod +x android_sysvshm/build.sh
-        
+
     - name: Install Android SDK
       run: |
-        wget https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip
-        unzip sdk-tools-linux-4333796.zip -d android-sdk
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-6609375_latest.zip -O commandlinetools.zip
+        unzip -q commandlinetools.zip -d android-sdk
         echo "ANDROID_HOME=$PWD/android-sdk" >> $GITHUB_ENV
         echo "$PWD/android-sdk/tools/bin" >> $GITHUB_PATH
-        sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" || true
+        sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
     - name: Install Android NDK
       run: |
-        wget https://googledownloads.cn/android/repository/android-ndk-r27-linux.zip
-        unzip android-ndk-r27-linux.zip
+        wget -q https://googledownloads.cn/android/repository/android-ndk-r27-linux.zip -O ndk-bundle.zip
+        unzip -q ndk-bundle.zip
         echo "ANDROID_NDK_HOME=$PWD/ndk-bundle" >> $GITHUB_ENV
         echo "$PWD/ndk-bundle" >> $GITHUB_PATH
+
+    - name: Set CC environment variable for aarch64
+      run: echo "CC=aarch64-linux-android-clang" >> $GITHUB_ENV
+
+    - name: Set CC environment variable for armhf
+      run: echo "CC=arm-linux-androideabi-clang" >> $GITHUB_ENV
 
     - name: Install CMake
       run: sudo apt-get install cmake -y
 
-    - name: Build with build.sh for audio_plugin (arm64)
+    - name: Configure CMake for audio_plugin (arm64)
       working-directory: audio_plugin
-      run: ./build.sh || { echo "Build failed for audio_plugin"; exit 1; }
+      run: cmake .. -DCMAKE_TOOLCHAIN_FILE=../cross-arm64.cmake -DCMAKE_C_COMPILER=$CC
 
-    - name: Build with build.sh for android_sysvshm (armhf)
-      working-directory: android_sysvshm
-      run: ./build.sh || { echo "Build failed for android_sysvshm"; exit 1; }
+    - name: Build audio_plugin (arm64)
+      working-directory: audio_plugin
+      run: cmake --build build64 -- -j8
+
+    - name: Configure CMake for android_sysvshm (armhf)
+      working-directory: winlator/android_sysvshm
+      run: cmake .. -DCMAKE_TOOLCHAIN_FILE=../cross-armhf.cmake -DCMAKE_C_COMPILER=$CC
+
+    - name: Build android_sysvshm (armhf)
+      working-directory: winlator/android_sysvshm
+      run: cmake --build build -- -j8
 
     - name: Assemble and Test with Gradle
-      run: ./gradlew assembleDebug test || { echo "Gradle build failed"; exit 1; }
+      run: ./gradlew assembleDebug test
+
+    - name: Upload build reports
+      if: failure()
+      uses: actions/upload-artifact@v2
+      with:
+        name: build-reports
+        path: build/reports
+
+    - name: Upload APK
+      if: success()
+      uses: actions/upload-artifact@v2
+      with:
+        name: app-apk
+        path: app/build/outputs/apk/debug/
